@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 PDF Merger App - Main launcher script.
 This is the entry point for the application.
