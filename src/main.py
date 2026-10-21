@@ -1,5 +1,5 @@
 """
-Main application logic - orchestrates the PDF merger workflow.
+Main application logic - orchestrates the PDF merger and compressor workflows.
 Handles user interaction, validation, and error management.
 """
 import sys
@@ -30,8 +30,17 @@ from src.dialogs import (
     select_output_file
 )
 from src.merger import merge_pdfs, MergerError, get_total_pages, validate_pdf_file
-from src.compressor import apply_compression
+from src.compressor import (
+    apply_compression,
+    compress_pdf_precise,
+    generate_compressed_filename,
+    get_compression_description
+)
 
+
+# ============================================================================
+# MERGE WORKFLOW
+# ============================================================================
 
 def collect_pdf_files() -> List[str]:
     """
@@ -73,7 +82,6 @@ def collect_pdf_files() -> List[str]:
                 continue
         
         elif choice == 'a':
-            # Manual selection (one by one)
             print_info("Opening file explorer for single file selection...")
             file_path = select_pdf_file()
             
@@ -97,7 +105,6 @@ def collect_pdf_files() -> List[str]:
                     break
         
         elif choice == 'b':
-            # Multiple selection
             print_info("Opening file explorer for multiple file selection...")
             print_info("Use Ctrl+click or Shift+click to select multiple files.")
             
@@ -107,7 +114,6 @@ def collect_pdf_files() -> List[str]:
                 print_warning("No files selected.")
                 continue
             
-            # Validate and add all selected files
             valid_count = 0
             for file_path in selected_files:
                 if validate_pdf_file(file_path):
@@ -125,7 +131,6 @@ def collect_pdf_files() -> List[str]:
                 break
         
         elif choice == 'c':
-            # Load all PDFs from a folder
             print_info("Opening folder selection dialog...")
             folder_path = select_folder_for_pdfs()
             
@@ -133,7 +138,6 @@ def collect_pdf_files() -> List[str]:
                 print_warning("No folder selected.")
                 continue
             
-            # Scan folder for PDF files
             print_progress(f"Scanning folder: {folder_path}")
             
             pdf_files = []
@@ -151,10 +155,8 @@ def collect_pdf_files() -> List[str]:
                 print_warning("No PDF files found in the selected folder.")
                 continue
             
-            # Sort alphabetically
             pdf_files.sort(key=lambda x: os.path.basename(x).lower())
             
-            # Show list of files to be loaded
             print()
             print_info(f"Found {len(pdf_files)} PDF file(s) in folder:")
             print(f"{Colors.DIM}{'-' * 60}{Colors.RESET}")
@@ -167,7 +169,6 @@ def collect_pdf_files() -> List[str]:
             confirm = input("> ").strip().lower()
             
             if confirm == 'y':
-                # Validate and add all files
                 valid_count = 0
                 for file_path in pdf_files:
                     if validate_pdf_file(file_path):
@@ -192,7 +193,7 @@ def collect_pdf_files() -> List[str]:
 
 def ask_compression_level() -> int:
     """
-    Ask user for compression level with validation.
+    Ask user for compression level (preset-based, used in merge workflow).
     
     Returns:
         int: 1 (no compression), 2 (standard), or 3 (maximum)
@@ -235,10 +236,8 @@ def run_merge_session() -> bool:
         bool: True if user wants to continue, False if wants to exit
     """
     try:
-        # Step 1: Collect PDF files
         files_to_merge = collect_pdf_files()
         
-        # Check if user cancelled file selection
         if not files_to_merge:
             print_info("File selection cancelled.")
             print_prompt("Do you want to start a new merge session? (y/n):")
@@ -255,7 +254,6 @@ def run_merge_session() -> bool:
         print_success(f"Total files: {len(files_to_merge)}")
         print_success(f"Total pages: {get_total_pages(files_to_merge)}")
         
-        # Step 2: Select output file
         print_section("OUTPUT LOCATION")
         print_prompt("Press ENTER to select output folder and filename:")
         input("> ")
@@ -268,15 +266,11 @@ def run_merge_session() -> bool:
             retry = input("> ").strip().lower()
             return retry == 'y'
         
-        # Ensure .pdf extension
         output_path = ensure_pdf_extension(output_path)
-        
         print_success(f"Output file: {output_path}")
         
-        # Step 3: Ask for compression
         compression_level = ask_compression_level()
         
-        # Step 4: Confirm before processing
         compression_text = "None" if compression_level == 1 else "Standard" if compression_level == 2 else "Maximum"
         
         print_summary({
@@ -295,7 +289,6 @@ def run_merge_session() -> bool:
             retry = input("> ").strip().lower()
             return retry == 'y'
         
-        # Step 5: Merge PDFs
         print()
         print_progress("Merging PDF files...")
         
@@ -308,7 +301,6 @@ def run_merge_session() -> bool:
                 retry = input("> ").strip().lower()
                 return retry == 'y'
             
-            # Step 6: Apply compression if requested
             if compression_level > 1:
                 print_progress(f"Applying compression (level {compression_level})...")
                 compression_success = apply_compression(output_path, compression_level)
@@ -321,7 +313,6 @@ def run_merge_session() -> bool:
                 else:
                     print_warning("Compression failed. Saved uncompressed version.")
             
-            # Step 7: Show success message
             file_size = get_file_size_mb(output_path)
             
             print()
@@ -336,7 +327,6 @@ def run_merge_session() -> bool:
             retry = input("> ").strip().lower()
             return retry == 'y'
         
-        # Ask if user wants to merge more PDFs
         print_prompt("Do you want to merge more PDFs? (y/n):")
         continue_choice = input("> ").strip().lower()
         
@@ -349,23 +339,225 @@ def run_merge_session() -> bool:
         return retry == 'y'
 
 
+# ============================================================================
+# COMPRESS-ONLY WORKFLOW
+# ============================================================================
+
+def ask_compression_level_precise() -> int:
+    """
+    Ask user for precise compression level on a 0-100 scale.
+    
+    Returns:
+        int: Compression level from 0 to 100
+    """
+    print_section("COMPRESSION LEVEL (0-100)")
+    print(f"{Colors.DIM}The scale is continuous: every value produces a distinct result.{Colors.RESET}")
+    print(f"{Colors.DIM}Higher number = smaller file + lower image quality.{Colors.RESET}")
+    print()
+    print(f"  {Colors.BOLD}Examples:{Colors.RESET}")
+    print(f"    {Colors.CYAN}10{Colors.RESET}  -> Very light  (277 DPI, JPEG quality 90)")
+    print(f"    {Colors.CYAN}25{Colors.RESET}  -> Light       (243 DPI, JPEG quality 79)")
+    print(f"    {Colors.CYAN}50{Colors.RESET}  -> Medium      (186 DPI, JPEG quality 59)")
+    print(f"    {Colors.CYAN}75{Colors.RESET}  -> Strong      (129 DPI, JPEG quality 40)")
+    print(f"    {Colors.CYAN}100{Colors.RESET} -> Maximum     ( 72 DPI, JPEG quality 20)")
+    print()
+    print(f"  {Colors.BOLD}0{Colors.RESET}   = no compression (direct copy)")
+    print(f"  {Colors.BOLD}100{Colors.RESET} = maximum compression (lowest quality)")
+    print()
+    print(f"{Colors.YELLOW}Warning: Heavy compression (60+) may degrade scanned text,")
+    print(f"since in scanned PDFs the text is actually an image.{Colors.RESET}")
+    print()
+    
+    while True:
+        print_prompt("Enter compression level (0-100) [default: 40]:")
+        choice = input("> ").strip()
+        
+        if not choice:
+            print_info("Using default: 40")
+            return 40
+        
+        try:
+            level = int(choice)
+        except ValueError:
+            print_error("Invalid input. Please enter a number between 0 and 100.")
+            continue
+        
+        if level < 0 or level > 100:
+            print_error("Level must be between 0 and 100.")
+            continue
+        
+        # Confirm if level is high
+        if level >= 60:
+            print_warning(f"Level {level} ({get_compression_description(level)}) will noticeably reduce quality.")
+            print_prompt("Proceed with this level? (y/n):")
+            confirm = input("> ").strip().lower()
+            if confirm != 'y':
+                print_info("Choose a different level.")
+                continue
+        
+        return level
+
+
+def run_compress_session() -> bool:
+    """
+    Run a single compress-only session.
+    
+    Returns:
+        bool: True if user wants to continue, False if wants to exit
+    """
+    try:
+        # Step 1: Select a single PDF
+        print_section("SELECT PDF TO COMPRESS")
+        print_info("Opening file explorer...")
+        
+        input_path = select_pdf_file()
+        
+        if not input_path:
+            print_warning("No file selected.")
+            print_prompt("Try again? (y/n):")
+            retry = input("> ").strip().lower()
+            return retry == 'y'
+        
+        if not validate_pdf_file(input_path):
+            print_error(f"Invalid PDF: {os.path.basename(input_path)}")
+            print_prompt("Try again? (y/n):")
+            retry = input("> ").strip().lower()
+            return retry == 'y'
+        
+        original_size = get_file_size_mb(input_path)
+        print_success(f"Selected: {os.path.basename(input_path)} ({original_size:.2f} MB)")
+        
+        # Step 2: Ask for compression level (0-100)
+        compression_level = ask_compression_level_precise()
+        
+        # Step 3: Build output path
+        output_path = generate_compressed_filename(input_path)
+        output_name = os.path.basename(output_path)
+        
+        print()
+        print_summary({
+            "Input file": os.path.basename(input_path),
+            "Input size": f"{original_size:.2f} MB",
+            "Output file": output_name,
+            "Output folder": os.path.dirname(output_path),
+            "Compression level": f"{compression_level} - {get_compression_description(compression_level)}"
+        })
+        
+        print_prompt("Proceed with compression? (y/n):")
+        confirm = input("> ").strip().lower()
+        
+        if confirm != 'y':
+            print_info("Operation cancelled by user.")
+            print_prompt("Compress another file? (y/n):")
+            retry = input("> ").strip().lower()
+            return retry == 'y'
+        
+        # Step 4: Compress
+        print()
+        print_progress("Compressing PDF...")
+        
+        success = compress_pdf_precise(input_path, output_path, compression_level)
+        
+        if not success:
+            print_error("Compression failed. Original file was not modified.")
+            print_prompt("Try again? (y/n):")
+            retry = input("> ").strip().lower()
+            return retry == 'y'
+        
+        # Step 5: Show results
+        compressed_size = get_file_size_mb(output_path)
+        
+        if original_size > 0:
+            reduction_pct = ((original_size - compressed_size) / original_size) * 100
+        else:
+            reduction_pct = 0.0
+        
+        print()
+        print_header("SUCCESS")
+        print_success(f"File saved to: {output_path}")
+        print_success(f"Original size:   {original_size:.2f} MB")
+        print_success(f"Compressed size: {compressed_size:.2f} MB")
+        
+        if reduction_pct > 0:
+            print_success(f"Size reduction:  {reduction_pct:.1f}%")
+        elif reduction_pct == 0:
+            print_warning("File size unchanged (file may already be optimized).")
+        else:
+            print_warning("File size increased (unusual, compression may not suit this PDF).")
+        
+        print()
+        
+        print_prompt("Compress another file? (y/n):")
+        continue_choice = input("> ").strip().lower()
+        
+        return continue_choice == 'y'
+        
+    except Exception as e:
+        print_error(f"Error during compression session: {e}")
+        print_prompt("Try again? (y/n):")
+        retry = input("> ").strip().lower()
+        return retry == 'y'
+
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
+
+def show_main_menu() -> str:
+    """
+    Show the main menu and return the user's choice.
+    
+    Returns:
+        str: 'm' for merge, 'c' for compress, 'q' for quit
+    """
+    print_section("MAIN MENU")
+    print(f"  {Colors.BOLD}m){Colors.RESET} Merge multiple PDFs into one")
+    print(f"  {Colors.BOLD}c){Colors.RESET} Compress a single PDF (precise scale 0-100)")
+    print(f"  {Colors.BOLD}q){Colors.RESET} Quit")
+    print()
+    
+    while True:
+        print_prompt("Select option (m/c/q):")
+        choice = input("> ").strip().lower()
+        
+        if choice in ["m", "c", "q"]:
+            return choice
+        
+        print_error("Invalid option. Please enter m, c, or q.")
+
+
 def main():
     """
     Main application entry point.
-    Orchestrates the complete PDF merger workflow with loop support.
+    Presents a main menu to choose between merge and compress workflows.
     """
     try:
         print_header("PDF MERGER APP")
-        print_info("Merge multiple PDFs without quality loss")
+        print_info("Merge multiple PDFs or compress a single PDF with precision")
         
-        # Loop to allow multiple merge sessions
         while True:
-            should_continue = run_merge_session()
+            choice = show_main_menu()
             
-            if not should_continue:
+            if choice == 'q':
                 print()
                 print_info("Thank you for using PDF Merger App!")
                 break
+            
+            elif choice == 'm':
+                print()
+                print_info("Starting merge workflow...")
+                while True:
+                    should_continue = run_merge_session()
+                    if not should_continue:
+                        break
+            
+            elif choice == 'c':
+                print()
+                print_info("Starting compress workflow...")
+                while True:
+                    should_continue = run_compress_session()
+                    if not should_continue:
+                        break
         
     except KeyboardInterrupt:
         print()

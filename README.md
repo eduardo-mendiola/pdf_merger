@@ -1,15 +1,15 @@
 # PDF Merger App
 
-A professional command-line application for Ubuntu that merges multiple PDF files into a single document with optional compression. Built with a clean modular architecture and native GNOME integration.
+A professional command-line application for Ubuntu that merges multiple PDF files into a single document and compresses individual PDFs with precision. Built with a clean modular architecture and native GNOME integration.
 
 ## Features
 
-- **Zero quality loss by default**: Page-level copying using `pypdf` ensures no recompression or rendering artifacts
-- **Optional compression**: Three compression levels powered by Ghostscript (industry standard)
-  - Level 1: No compression (original quality)
-  - Level 2: Standard (~150 DPI images, good balance)
-  - Level 3: Maximum (~72 DPI images, smallest file size)
-- **Flexible file selection**: Three ways to add PDFs
+- **Two main workflows**:
+  - **Merge**: Combine multiple PDFs into one document
+  - **Compress**: Reduce the size of a single PDF with a precise 0-100 scale
+- **Zero quality loss in merge mode**: Page-level copying using `pypdf` ensures no recompression or rendering artifacts
+- **Precise compression scale**: Continuous 0-100 scale powered by Ghostscript (industry standard), with linear interpolation of DPI and JPEG quality
+- **Flexible file selection**: Three ways to add PDFs for merging
   - Manual selection (one by one)
   - Multiple selection (Ctrl+click or Shift+click in file dialog)
   - Batch loading (load all PDFs from a folder, sorted alphabetically)
@@ -17,9 +17,10 @@ A professional command-line application for Ubuntu that merges multiple PDF file
 - **Security focused**: All file operations restricted to the user's home directory
 - **Smart file handling**: Combined folder + filename selection in a single dialog (like browser downloads)
 - **Overwrite protection**: Warns when a file already exists and offers safe alternatives
+- **Non-destructive compression**: Compressed files are saved with a `_compressed` suffix, preserving the original
 - **Professional console UI**: Color-coded output with clean formatting (no emoji spam)
 - **Robust error handling**: Graceful handling of invalid inputs, cancellations, and `Ctrl+C`
-- **Multi-session workflow**: Merge multiple sets of PDFs without restarting the app
+- **Multi-session workflow**: Run as many merge or compress sessions as you want without restarting the app
 - **Modular architecture**: Clean separation of concerns across dedicated modules
 
 ## Requirements
@@ -76,16 +77,15 @@ source venv/bin/activate
 python pdf_merger.py
 ```
 
-The application will guide you through the process:
+The application presents a main menu:
 
-1. Choose how to load PDFs:
-   - **a)** Select files manually (one by one)
-   - **b)** Select multiple files at once (Ctrl+click in dialog)
-   - **c)** Load all PDFs from a folder (alphabetical order)
-2. Choose the output folder and filename in a single dialog
-3. Select a compression level (or keep original quality)
-4. Review the summary and confirm
-5. Repeat as many times as you want, or exit cleanly
+1. Choose your workflow:
+   - **m)** Merge multiple PDFs into one
+   - **c)** Compress a single PDF with a precise 0-100 scale
+   - **q)** Quit
+2. Follow the guided prompts (file selection, output location, compression options)
+3. Review the summary and confirm
+4. Repeat as many times as you want, or exit cleanly
 
 ## Project Structure
 
@@ -93,7 +93,7 @@ The application will guide you through the process:
 pdf_merger/
 ├── venv/                  # Virtual environment (auto-generated)
 ├── src/                   # Application source code
-│   ├── __init__.py        # Package marker
+│   ├── __init__.py        # Package marker with metadata
 │   ├── main.py            # Application orchestrator and user workflow
 │   ├── merger.py          # PDF merging logic using pypdf
 │   ├── compressor.py      # PDF compression logic using Ghostscript
@@ -102,7 +102,8 @@ pdf_merger/
 │   └── utils.py           # Path validation, file handling, helpers
 ├── pdf_merger.py          # Executable launcher (entry point)
 ├── README.md              # This file
-└── USAGE.md               # Detailed usage instructions
+├── USAGE.md               # Detailed usage instructions
+└── LICENSE                # MIT License
 ```
 
 ## Architecture
@@ -111,9 +112,9 @@ The application follows a clean modular design:
 
 | Module | Responsibility |
 |--------|----------------|
-| `main.py` | Orchestrates the user workflow, handles input validation and error management |
+| `main.py` | Orchestrates the user workflow, presents the main menu, handles input validation and error management |
 | `merger.py` | Merges PDF files using `pypdf` without quality loss |
-| `compressor.py` | Applies image compression via Ghostscript with safe temporary file handling |
+| `compressor.py` | Applies image compression via Ghostscript (preset-based for merge, precise scale for standalone mode) |
 | `dialogs.py` | Wraps `zenity` commands for native file/folder selection (single, multiple, folder) |
 | `console.py` | Provides styled console output with ANSI colors |
 | `utils.py` | Security validations, path helpers, and file utilities |
@@ -130,14 +131,25 @@ Uses `pypdf` to copy pages at the structural level. This means:
 
 ### PDF Compression
 
-Uses **Ghostscript** (`gs`), the industry-standard PDF processor:
-- Presets: `/ebook` (~150 DPI) and `/screen` (~72 DPI)
+Uses **Ghostscript** (`gs`), the industry-standard PDF processor, in two modes:
+
+#### Preset-based compression (used in merge workflow)
+- Three presets: `/prepress`, `/ebook` (~150 DPI), `/screen` (~72 DPI)
 - Only affects raster images; text and vectors remain crisp
 - Safe in-place compression using temporary files (original is never lost if compression fails)
 
+#### Precise scale-based compression (used in standalone compress mode)
+- Continuous 0-100 scale with **linear interpolation** of parameters
+- Every value from 0 to 100 produces a distinct result
+- **DPI range**: 300 (level 0) → 72 (level 100)
+- **JPEG quality range**: 98 (level 0) → 20 (level 100)
+- Formula: `value = max_value - (max_value - min_value) × (level / 100)`
+- Non-destructive: the original file is never modified; the compressed version is saved with a `_compressed` suffix
+- Displays the actual DPI and JPEG quality that will be applied, so you always know exactly what you're getting
+
 ### File Selection Methods
 
-The app provides three ways to load PDFs:
+The app provides three ways to load PDFs for merging:
 
 1. **Manual selection (option a)**: Opens file dialog for each file, one at a time. Best when files are in different folders or you want precise control.
 
@@ -156,7 +168,7 @@ The app provides three ways to load PDFs:
 
 - Invalid user inputs are caught and re-prompted with clear messages
 - `Ctrl+C` is handled gracefully without stack traces
-- Failed compression falls back to the uncompressed version
+- Failed compression falls back to the uncompressed version (in merge mode) or reports an error (in compress mode)
 - Corrupted PDFs are detected and skipped with warnings
 
 ## Troubleshooting
@@ -184,12 +196,17 @@ pip install pypdf
 ### Compression doesn't reduce file size
 - The PDF may contain vector graphics or text (not affected by compression)
 - Images may already be compressed at a lower quality than the target
-- Try Level 3 (Maximum) for more aggressive compression
+- Try a higher level (e.g., 80 or 100) for more aggressive compression
 
 ### Batch loading doesn't find files
 - Ensure the folder contains `.pdf` files (case-insensitive)
 - Check that files are not in subfolders (only scans the selected folder)
 - Verify you have read permissions for the folder
+
+### Compressed file is larger than the original
+- Some PDFs are already optimized or contain content that doesn't compress well
+- Try a lower compression level (e.g., 20 or 30)
+- The original file is preserved, so no data is lost
 
 ## License
 

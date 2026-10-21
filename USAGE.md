@@ -19,12 +19,33 @@ When you run the application, you'll see:
                        PDF MERGER APP                       
 ============================================================
 
-ℹ Merge multiple PDFs without quality loss
+ℹ Merge multiple PDFs or compress a single PDF with precision
 ```
+
+The application presents a main menu:
+
+```
+--- MAIN MENU ---
+
+  m) Merge multiple PDFs into one
+  c) Compress a single PDF (precise scale 0-100)
+  q) Quit
+
+Select option (m/c/q):
+> 
+```
+
+- Type `m` to start the merge workflow
+- Type `c` to start the compress-only workflow
+- Type `q` to exit the application
+
+---
+
+## Merge Workflow
 
 ### Step 1: Select PDF Files
 
-The application will present a menu with multiple loading options:
+After choosing `m` from the main menu, the application will present a menu with multiple loading options:
 
 ```
 --- FILE LOADING ---
@@ -247,13 +268,146 @@ Do you want to merge more PDFs? (y/n):
 ```
 
 - Type `y` to start a new merge session (go back to Step 1)
-- Type `n` to exit the application
+- Type `n` to return to the main menu
 
-When you exit:
+---
+
+## Compress Workflow
+
+### Step 1: Select PDF to Compress
+
+After choosing `c` from the main menu:
 
 ```
-ℹ Thank you for using PDF Merger App!
+--- SELECT PDF TO COMPRESS ---
+ℹ Opening file explorer...
 ```
+
+**What to do:**
+- A file picker window will open
+- Navigate to and select the PDF file you want to compress
+- The terminal will confirm:
+
+```
+✓ Selected: large_document.pdf (27.45 MB)
+```
+
+### Step 2: Choose Compression Level (0-100)
+
+The application will display the precise compression scale:
+
+```
+--- COMPRESSION LEVEL (0-100) ---
+The scale is continuous: every value produces a distinct result.
+Higher number = smaller file + lower image quality.
+
+  Examples:
+    10  -> Very light  (277 DPI, JPEG quality 90)
+    25  -> Light       (243 DPI, JPEG quality 79)
+    50  -> Medium      (186 DPI, JPEG quality 59)
+    75  -> Strong      (129 DPI, JPEG quality 40)
+    100 -> Maximum     ( 72 DPI, JPEG quality 20)
+
+  0   = no compression (direct copy)
+  100 = maximum compression (lowest quality)
+
+Warning: Heavy compression (60+) may degrade scanned text,
+since in scanned PDFs the text is actually an image.
+
+Enter compression level (0-100) [default: 40]:
+> 
+```
+
+**Understanding the scale:**
+
+The compression uses **linear interpolation** between two endpoints:
+- **DPI range**: 300 (level 0) → 72 (level 100)
+- **JPEG quality range**: 98 (level 0) → 20 (level 100)
+
+Every value from 0 to 100 produces a distinct result. For example:
+- Level 45 → 197 DPI, JPEG quality 63
+- Level 50 → 186 DPI, JPEG quality 59
+- Level 60 → 163 DPI, JPEG quality 51
+
+**What to do:**
+- Enter a number from 0 to 100
+- Press ENTER without typing to use the default (40)
+- If you enter 60 or higher, you'll be asked to confirm:
+
+```
+⚠ Level 75 (Strong - 129 DPI, JPEG quality 40) will noticeably reduce quality.
+Proceed with this level? (y/n):
+> 
+```
+
+- Type `y` to proceed
+- Type `n` to choose a different level
+
+### Step 3: Review and Confirm
+
+Before processing, you'll see a summary:
+
+```
+Summary:
+----------------------------------------
+  Input file:        large_document.pdf
+  Input size:        27.45 MB
+  Output file:       large_document_compressed.pdf
+  Output folder:     /home/user/Documents
+  Compression level: 50 - Medium (186 DPI, JPEG quality 59)
+----------------------------------------
+
+Proceed with compression? (y/n):
+> 
+```
+
+**What to do:**
+- Review the summary to ensure everything is correct
+- Type `y` and press ENTER to start compression
+- Type `n` to cancel
+
+**Important:** The compressed file will be saved in the same folder as the original, with a `_compressed` suffix added to the filename. The original file is never modified.
+
+### Step 4: Processing
+
+The application will compress the file:
+
+```
+→ Compressing PDF...
+```
+
+### Step 5: Results
+
+After successful compression, you'll see:
+
+```
+============================================================
+                          SUCCESS                           
+============================================================
+
+✓ File saved to: /home/user/Documents/large_document_compressed.pdf
+✓ Original size:   27.45 MB
+✓ Compressed size: 12.34 MB
+✓ Size reduction:  55.0%
+```
+
+The application shows:
+- The path where the compressed file was saved
+- The original file size
+- The compressed file size
+- The percentage of size reduction
+
+### Step 6: Continue or Exit
+
+```
+Compress another file? (y/n):
+> 
+```
+
+- Type `y` to compress another file (go back to Step 1)
+- Type `n` to return to the main menu
+
+---
 
 ## Common Scenarios
 
@@ -261,56 +415,67 @@ When you exit:
 
 You have 2 PDFs and want to combine them without changing quality:
 
-1. Type `a` → Select first PDF manually
-2. Type `y` → Select second PDF manually
-3. Type `n` → Finish selecting
-4. Press ENTER → Choose output location
-5. Press ENTER → Use default compression (Option 1)
-6. Type `y` → Confirm merge
-7. Type `n` → Exit
+1. Type `m` → Start merge workflow
+2. Type `a` → Select first PDF manually
+3. Type `y` → Select second PDF manually
+4. Type `n` → Finish selecting
+5. Press ENTER → Choose output location
+6. Press ENTER → Use default compression (Option 1)
+7. Type `y` → Confirm merge
+8. Type `n` → Return to main menu
 
 ### Scenario 2: Merge Multiple Files from Same Folder
 
 You have 19 PDFs in a folder and want to merge them all:
 
-1. Type `c` → Select the folder containing the PDFs
-2. Review the list of files shown
-3. Type `y` → Confirm loading all files
-4. Press ENTER → Choose output location
-5. Type `2` → Select standard compression (optional)
-6. Type `y` → Confirm compression
-7. Type `y` → Confirm merge
-8. Type `n` → Exit
+1. Type `m` → Start merge workflow
+2. Type `c` → Select the folder containing the PDFs
+3. Review the list of files shown
+4. Type `y` → Confirm loading all files
+5. Press ENTER → Choose output location
+6. Type `2` → Select standard compression (optional)
+7. Type `y` → Confirm compression
+8. Type `y` → Confirm merge
+9. Type `n` → Return to main menu
 
 ### Scenario 3: Select Specific Files with Multiple Selection
 
 You have 10 PDFs in a folder but only want to merge 5 specific ones:
 
-1. Type `b` → Open multiple file selection dialog
-2. Use Ctrl+click to select the 5 files you want
-3. Click "Open" → Files are loaded
-4. Press ENTER → Choose output location
-5. Press ENTER → Use default compression
-6. Type `y` → Confirm merge
-7. Type `n` → Exit
+1. Type `m` → Start merge workflow
+2. Type `b` → Open multiple file selection dialog
+3. Use Ctrl+click to select the 5 files you want
+4. Click "Open" → Files are loaded
+5. Press ENTER → Choose output location
+6. Press ENTER → Use default compression
+7. Type `y` → Confirm merge
+8. Type `n` → Return to main menu
 
-### Scenario 4: Merge Files with Compression
+### Scenario 4: Compress a Large PDF
 
-You have 5 PDFs with images and want to reduce file size:
+You have a 27 MB PDF with images and want to reduce its size:
 
-1. Type `a` → Select first PDF
-2. Type `y` → Select second PDF
-3. Type `y` → Select third PDF
-4. Type `y` → Select fourth PDF
-5. Type `y` → Select fifth PDF
-6. Type `n` → Finish selecting
-7. Press ENTER → Choose output location
-8. Type `2` → Select standard compression
-9. Type `y` → Confirm compression
-10. Type `y` → Confirm merge
-11. Type `y` → Merge more PDFs (or `n` to exit)
+1. Type `c` → Start compress workflow
+2. Select the PDF file
+3. Type `50` → Choose medium compression
+4. Type `y` → Confirm the level
+5. Type `y` → Confirm compression
+6. Check the results (should be ~12 MB, 55% reduction)
+7. Type `n` → Return to main menu
 
-### Scenario 5: Cancel and Restart
+### Scenario 5: Compress with Maximum Reduction
+
+You need to email a PDF but it's too large:
+
+1. Type `c` → Start compress workflow
+2. Select the PDF file
+3. Type `80` → Choose strong compression
+4. Type `y` → Confirm the level
+5. Type `y` → Confirm compression
+6. Check the results (should be significantly smaller)
+7. Type `n` → Return to main menu
+
+### Scenario 6: Cancel and Restart
 
 You selected files but want to start over:
 
@@ -318,14 +483,14 @@ You selected files but want to start over:
 2. You'll be asked: "Start a new merge session? (y/n):"
 3. Type `y` to start over from file selection
 
-### Scenario 6: Exit Without Merging
+### Scenario 7: Exit Without Doing Anything
 
 You opened the app but changed your mind:
 
-1. At the file selection menu, type `q`
-2. Confirm exit when asked
-3. At "Do you want to start a new merge session?", type `n`
-4. Application exits cleanly
+1. At the main menu, type `q`
+2. Application exits cleanly
+
+---
 
 ## Keyboard Shortcuts
 
@@ -344,6 +509,8 @@ You opened the app but changed your mind:
 - `Ctrl + C`: Cancel current operation and exit application
 - `Ctrl + D`: Send EOF (same as typing `q` in most prompts)
 
+---
+
 ## Tips and Best Practices
 
 ### File Organization
@@ -352,6 +519,7 @@ You opened the app but changed your mind:
 - Use descriptive filenames before merging
 - The merged PDF will be saved with the name you specify (default: `MERGED_PDF_FINAL.pdf`)
 - For batch loading, name files with numbers (001, 002, 003) to ensure correct order
+- Compressed files are automatically saved with `_compressed` suffix in the same folder
 
 ### Choosing the Right Loading Method
 
@@ -375,6 +543,8 @@ You opened the app but changed your mind:
 
 ### Compression Guidelines
 
+#### For Merge Workflow (Preset-based)
+
 **When to use no compression (Option 1):**
 - Documents with text only
 - Legal documents requiring original quality
@@ -393,24 +563,62 @@ You opened the app but changed your mind:
 - Archive storage
 - Documents where text is more important than image quality
 
+#### For Compress Workflow (Precise scale 0-100)
+
+**Level 0-20 (Very light):**
+- Minimal size reduction
+- Maximum quality preservation
+- Best for: High-quality prints, important documents
+
+**Level 21-40 (Light):**
+- Moderate size reduction
+- Good quality preservation
+- Best for: General documents with images
+
+**Level 41-60 (Medium):**
+- Good balance of size and quality
+- Best for: Most use cases, screen viewing
+
+**Level 61-80 (Strong):**
+- Significant size reduction
+- Noticeable quality reduction
+- Best for: Email attachments, web uploads
+
+**Level 81-100 (Maximum):**
+- Maximum size reduction
+- Significant quality reduction
+- Best for: When size is critical, archival copies
+
+**Warning:** For scanned PDFs (where text is actually an image), compression levels above 60 may make text difficult to read.
+
 ### File Size Expectations
 
-**Without compression:**
+**Merge workflow (preset-based):**
+
+Without compression:
 - Final size ≈ Sum of all input file sizes
 - Example: 3 files of 2MB each = ~6MB merged file
 
-**With standard compression (Option 2):**
+With standard compression (Option 2):
 - Typical reduction: 30-50%
 - Example: 6MB merged file → ~3-4MB
 
-**With maximum compression (Option 3):**
+With maximum compression (Option 3):
 - Typical reduction: 60-80%
 - Example: 6MB merged file → ~1-2MB
 
-**Note:** Actual compression depends on:
+**Compress workflow (precise scale):**
+
+The actual reduction depends on:
+- The compression level chosen
 - Number and size of images in the PDF
 - Original image quality and resolution
 - Content type (text-heavy PDFs compress less)
+
+Typical reductions:
+- Level 40: 20-40% reduction
+- Level 60: 40-60% reduction
+- Level 80: 60-80% reduction
 
 ### Order Matters
 
@@ -427,11 +635,21 @@ You opened the app but changed your mind:
 
 **Tip:** For batch loading, use numbered prefixes to ensure correct order.
 
+---
+
 ## Troubleshooting
+
+### "Invalid option. Please enter m, c, or q."
+
+**Cause:** You typed something other than m, c, or q in the main menu
+
+**Solution:** 
+- Type `m`, `c`, or `q` and press ENTER
+- These are the only valid options in the main menu
 
 ### "Invalid option. Please enter a, b, c, or q."
 
-**Cause:** You typed something other than a, b, c, or q in the menu
+**Cause:** You typed something other than a, b, c, or q in the file loading menu
 
 **Solution:** 
 - Type `a`, `b`, `c`, or `q` and press ENTER
@@ -488,15 +706,42 @@ You opened the app but changed your mind:
 - You'll be asked to try again
 - Press ENTER to reopen the dialog and select a location
 
+### "Invalid input. Please enter a number between 0 and 100."
+
+**Cause:** You entered text or a number outside the 0-100 range in the compression level prompt
+
+**Solution:**
+- Enter a number from 0 to 100
+- Press ENTER without typing to use the default (40)
+
 ### "Compression failed. Saved uncompressed version."
 
-**Cause:** Ghostscript encountered an error during compression
+**Cause:** Ghostscript encountered an error during compression (in merge workflow)
 
 **Solution:**
 - The merged PDF was still saved successfully (without compression)
 - Check if Ghostscript is installed: `gs --version`
 - Try a different compression level
 - The file may contain elements that cannot be compressed
+
+### "Compression failed. Original file was not modified."
+
+**Cause:** Ghostscript encountered an error during compression (in compress workflow)
+
+**Solution:**
+- The original file is preserved (never modified)
+- Check if Ghostscript is installed: `gs --version`
+- Try a different compression level
+- The file may contain elements that cannot be compressed
+
+### "File size unchanged" or "File size increased"
+
+**Cause:** The compressed file is the same size or larger than the original
+
+**Solution:**
+- Some PDFs are already optimized or contain content that doesn't compress well
+- Try a different compression level
+- The original file is preserved, so no data is lost
 
 ### "Operation cancelled by user (Ctrl+C)"
 
@@ -516,20 +761,21 @@ You opened the app but changed your mind:
 - If it hangs for more than 2 minutes, press Ctrl+C to cancel
 - Try with smaller files or fewer files at once
 
+---
+
 ## Advanced Usage
 
-### Multiple Merge Sessions
+### Multiple Sessions
 
-You can merge multiple sets of PDFs without restarting:
+You can run multiple merge or compress sessions without restarting:
 
-1. Complete first merge
-2. At "Do you want to merge more PDFs?", type `y`
-3. Start selecting files for the next merge
-4. Repeat as needed
+1. Complete a merge or compress session
+2. At the prompt, type `y` to continue or `n` to return to main menu
+3. From the main menu, choose a different workflow or exit
 
-### Custom Filenames
+### Custom Filenames (Merge Workflow)
 
-When saving, you can specify any valid filename:
+When saving a merged PDF, you can specify any valid filename:
 
 - `report_final.pdf`
 - `merged_document_2024.pdf`
@@ -549,7 +795,7 @@ If the output file already exists, Zenity will warn you:
 
 ### Mixing Selection Methods
 
-You can combine different loading methods in the same session:
+You can combine different loading methods in the same merge session:
 
 1. Type `c` → Load 10 files from a folder
 2. Type `y` → Confirm loading
@@ -557,6 +803,16 @@ You can combine different loading methods in the same session:
 4. Type `n` → Finish selecting
 
 The files will be merged in the order they were added.
+
+### Compressed File Naming
+
+In the compress workflow, the output file is automatically named:
+- Original: `document.pdf`
+- Compressed: `document_compressed.pdf`
+
+The compressed file is saved in the same folder as the original.
+
+---
 
 ## Performance Notes
 
@@ -568,15 +824,24 @@ The files will be merged in the order they were added.
 - System resources (CPU, RAM, disk speed)
 
 **Typical processing times:**
+
+Merge workflow:
 - Small files (< 1MB each): 1-3 seconds
 - Medium files (1-10MB each): 3-10 seconds
 - Large files (> 10MB each): 10-30 seconds
 - Compression adds 2-5 seconds per file
 
+Compress workflow:
+- Small files (< 5MB): 2-5 seconds
+- Medium files (5-20MB): 5-15 seconds
+- Large files (> 20MB): 15-45 seconds
+
 **Batch loading performance:**
 - Scanning a folder with 100+ files: < 1 second
 - Validation of 50 files: 2-5 seconds
 - Total time is dominated by the merge and compression steps
+
+---
 
 ## Security Reminders
 
@@ -585,6 +850,9 @@ The files will be merged in the order they were added.
 - Hidden files and folders are not shown in dialogs
 - All file paths are validated before processing
 - Batch loading only scans the selected folder (not subfolders)
+- In compress workflow, the original file is never modified
+
+---
 
 ## Support
 
